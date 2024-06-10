@@ -1,91 +1,110 @@
-import { DownloadIcon, Settings, ZapIcon } from "lucide-react";
+import { DownloadIcon, Settings } from "lucide-react";
 import { Button } from "../../shadcn/ui/button";
 import { useSettings } from "../SettingsProvider";
 import { Label } from "../../shadcn/ui/label";
 import { Input } from "../../shadcn/ui/input";
-import { Checkbox } from "../../shadcn/ui/checkbox";
 import React from "react";
+import { useToast } from "../../shadcn/ui/use-toast";
+import { Progress } from "../../shadcn/ui/progress";
 
 const SettingsModalContent: React.FC = () => {
-  const { settings, updateSettings, createFGtoStyleMap, createItemMasterMap } =
-    useSettings();
+  const {
+    settings,
+    updateSettings,
+    handleBarcodeDataUpload,
+    itemMaster,
+    downloadProgress,
+    downloadAllImages,
+  } = useSettings();
 
-  const handleCSVUpload = (e: any) => {
-    createFGtoStyleMap(e.target.files[0]);
-  };
+  const { toast } = useToast();
+  const [isDownloadStarted, setDownloadStarted] =
+    React.useState<boolean>(false);
+  const [password, setPassword] = React.useState("");
 
-  const handleSAPItemMasterUpload = (e: any) => {
-    createItemMasterMap(e.target.files[0]);
-  };
   return (
     <div className="grid gap-5">
       <div className="grid w-full max-w-xs items-center gap-1.5">
-        <Label htmlFor="downloadTuner">Download tuner</Label>
-        <Input
-          type="number"
-          id="downloadTuner"
-          value={settings.downloadTuner}
-          step={100}
-          min={1000}
-          onBlur={(e) => {
-            const val = Number(e.target.value);
-            updateSettings("downloadTuner", val < 1000 ? 1000 : val);
-          }}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            updateSettings("downloadTuner", val);
-          }}
-        />
-      </div>
-      <div className="grid w-full max-w-xs items-center gap-1.5">
-        <Label>Download format</Label>
-        <div className="flex items-centers">
-          <Checkbox
-            className="w-[16px] m-auto"
-            checked={settings.asZip}
-            onCheckedChange={(a) => {
-              updateSettings("asZip", a === "indeterminate" ? true : a);
-            }}
-          />
-          <label
-            className="flex-1 ml-2"
-            onClick={() => {
-              updateSettings("asZip", !settings.asZip);
-            }}
-          >
-            Download as zip. (quick <ZapIcon size={14} className="inline" />)
-          </label>
-        </div>
-      </div>
-      <div className="grid w-full max-w-xs items-center gap-1.5">
-        <Label htmlFor="fileMap">FG to style params Map</Label>
-        <Input
-          type="file"
-          id="fileMap"
-          placeholder=""
-          accept=".csv"
-          onChange={handleCSVUpload}
-        />
-      </div>
+        {!settings.isLoggedIn ? (
+          <>
+            <Label htmlFor="downloadTuner">Password</Label>
+            <Input
+              type="password"
+              id="password"
+              disabled={settings.isLoggedIn}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+              }}
+            />
+          </>
+        ) : (
+          <></>
+        )}
+        <Button
+          onClick={() => {
+            if (!settings.isLoggedIn) {
+              if (password === "12345") {
+                updateSettings("isLoggedIn", true);
 
+                toast({
+                  variant: "default",
+                  title: "Logged in",
+                  description: "Login Successful",
+                });
+              } else {
+                toast({
+                  variant: "destructive",
+                  title: "Login Failed",
+                  description: "Wrong Password",
+                });
+              }
+            } else {
+              updateSettings("isLoggedIn", false);
+            }
+          }}
+        >
+          {settings.isLoggedIn ? "Logout" : "Login"}
+        </Button>
+      </div>
       <div className="grid w-full max-w-xs items-center gap-1.5">
-        <Label htmlFor="fileMap">Barcode master</Label>
+        <Label htmlFor="fileMap">Upload Barcode data</Label>
         <Input
           type="file"
           id="sapItemMaster"
           placeholder=""
           accept=".csv"
-          onChange={handleSAPItemMasterUpload}
+          onChange={(e) => handleBarcodeDataUpload(e.target.files?.[0] ?? null)}
         />
         <small>
           Download sample file.
           <a
             className="ml-2"
-            href={"mbo-booking-application/csv/barcode_sample.csv"}
+            href={"./mbo-booking-application/csv/barcode_sample.csv"}
           >
             <DownloadIcon size={14} className="inline" /> download
           </a>
         </small>
+        <p className="text-sm mt-2">Uploaded {itemMaster?.size ?? 0} items.</p>
+        <Button
+          variant="link"
+          onClick={async () => {
+            setDownloadStarted(true);
+            await downloadAllImages();
+            setDownloadStarted(false);
+          }}
+        >
+          <DownloadIcon size={14} className="inline" />
+          <p className="ml-2">Download all the images</p>
+        </Button>
+        {isDownloadStarted ? (
+          <>
+            <Progress value={downloadProgress * 100} />
+            <small>Downloading all images</small>
+          </>
+        ) : (
+          <small>Downloaded all the images.</small>
+        )}
       </div>
     </div>
   );
@@ -96,7 +115,7 @@ export default SettingsModalContent;
 export const SettingsModalButton = () => {
   const { setSettingsModalOpen } = useSettings();
   return (
-    <div className="flex flex-row-reverse	mt-4">
+    <div className="absolute right-1 bottom-1">
       <Button
         className=""
         variant="outline"

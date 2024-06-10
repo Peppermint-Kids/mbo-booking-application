@@ -3,45 +3,39 @@ import React, { useContext } from "react";
 import { DialogNonTrigger } from "../shadcn/ui/dialog";
 import { SettingsModalContent } from "./SettingsModal";
 import { useToast } from "../shadcn/ui/use-toast";
+import { IDBPDatabase, openDB } from "idb";
 
 export type SettingsState = {
-  asZip: boolean;
-  downloadTuner: number;
-};
-
-export type ItemNoToStyleMap = {
-  fgItemNo: string;
-  styleNo: string;
-  sapColor: string;
-  styleCode: string;
-  season: "SS" | "AW";
-  year: string;
-  approvedColor: string;
+  isLoggedIn: boolean;
 };
 
 export type Item = {
   barcode: string;
-  itemNo: string;
+  itemDescription: string;
   color: string;
   styleCode: string;
   season: "SS" | "AW";
   year: string;
+  imageName: string;
+  imageLink: string;
 };
 
 const DEFAULT_SETTINGS_STATE: SettingsState = {
-  asZip: true,
-  downloadTuner: 2000,
+  isLoggedIn: false,
 };
 
 type SettingsContextProps = {
   settings: SettingsState;
   setSettings: React.Dispatch<React.SetStateAction<SettingsState>>;
-  updateSettings: (field: keyof SettingsState, val: number | boolean) => void;
+  updateSettings: (field: keyof SettingsState, val: boolean) => void;
   setSettingsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  itemNoToStyleMap: Map<string, ItemNoToStyleMap> | undefined;
-  createFGtoStyleMap: (file: File) => void;
-  itemMasterMap: Map<string, Item> | undefined;
-  createItemMasterMap: (file: File) => void;
+  handleBarcodeDataUpload: (file: File | null) => void;
+  itemMaster: Map<string, Item> | undefined;
+  imageUrl: string;
+  downloadAllImages: () => Promise<void>;
+  retrieveImage: (barcode: string) => Promise<void>;
+  downloadProgress: number;
+  db: IDBPDatabase<unknown> | undefined;
 };
 const SettingsContext = React.createContext<SettingsContextProps | undefined>(
   undefined
@@ -52,18 +46,33 @@ const SettingsProvider: React.FC<{
 }> = ({ children, defaultSettings = DEFAULT_SETTINGS_STATE }) => {
   const [settings, setSettings] =
     React.useState<SettingsState>(defaultSettings);
+  const [db, setDb] = React.useState<IDBPDatabase<unknown>>();
   const [settingsModalOpen, setSettingsModalOpen] = React.useState(false);
-  const [itemNoToStyleMap, setItemNoToStyleMap] =
-    React.useState<Map<string, ItemNoToStyleMap>>();
-  const [itemMasterMap, setItemMasterMap] = React.useState<Map<string, Item>>();
+  const [imageUrl, setImageUrl] = React.useState<string>("");
+  const [downloadProgress, setDownloadProgress] = React.useState<number>(0);
+  const [itemMaster, setItemMaster] = React.useState<Map<string, Item>>(
+    new Map()
+  );
 
   const { toast } = useToast();
 
-  const updateSettings = (
-    field: keyof SettingsState,
-    val: number | boolean
-  ) => {
-    setSettings((prevVal) => {
+  React.useEffect(() => {
+    // Open or create the database
+    const initDB = async () => {
+      const db = await openDB("fileStorageDB", 1, {
+        upgrade(db) {
+          if (!db.objectStoreNames.contains("files")) {
+            db.createObjectStore("files", { keyPath: "imageName" });
+          }
+        },
+      });
+      setDb(db);
+    };
+    initDB();
+  }, []);
+
+  const updateSettings = (field: keyof SettingsState, val: boolean) => {
+    setSettings((prevVal: SettingsState) => {
       return {
         ...prevVal,
         [field]: val,
@@ -71,98 +80,98 @@ const SettingsProvider: React.FC<{
     });
   };
 
+  const downloadAllImages = async () => {
+    var i = 0;
+    for (let [, item] of itemMaster) {
+      let res = await fetch(item.imageLink, {
+        mode: "cors",
+      });
+
+      const blob = await res.blob();
+
+      const fileEntry = {
+        id: item.imageName,
+        imageName: item.imageName,
+        name: item.imageLink.split("/").pop(),
+        type: blob.type,
+        content: blob,
+      };
+
+      const tx = db?.transaction("files", "readwrite");
+      const store = tx?.objectStore("files");
+      const id = await store?.put(fileEntry);
+      i++;
+      setDownloadProgress(i / itemMaster.size);
+      console.log("File saved:", id);
+    }
+  };
+
+  // Retrieve file entry from IndexedDB
+  const retrieveImage = async (barcode: string) => {
+    if (!barcode) return;
+    const item = itemMaster.get(barcode);
+    if (item) {
+      const tx = db?.transaction("files", "readonly");
+      const store = tx?.objectStore("files");
+      const fileEntry = await store?.get(item.imageName);
+      if (fileEntry && fileEntry.type.startsWith("image/")) {
+        const blob = new Blob([fileEntry.content], { type: fileEntry.type });
+        const url = URL.createObjectURL(blob);
+        setImageUrl(url);
+      }
+    }
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const csvFileToArray = (text: any) => {
     const csvRows = text.slice(text.indexOf("\n") + 1).split("\n");
     const map = (csvRows as string[]).reduce(
-      (acc: Map<string, ItemNoToStyleMap>, i: string) => {
-        const values = i.split(",");
-        const style: ItemNoToStyleMap = {
-          fgItemNo: values[0].trim(),
-          styleNo: values[1].trim(),
-          sapColor: values[2].trim().replace(/ /g, ""),
-          styleCode: values[3].trim(),
-          season: values[4].trim() === "Autumn Winter" ? "AW" : "SS",
-          year: values[5].trim(),
-          approvedColor: values[6].trim(),
-        };
-        acc.set(values[0].trim().toUpperCase(), style);
-        return acc;
-      },
-      new Map()
-    );
-    setItemNoToStyleMap(map);
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const itemMasterToArray = (text: any) => {
-    const csvRows = text.slice(text.indexOf("\n") + 1).split("\n");
-    const map = (csvRows as string[]).reduce(
       (acc: Map<string, Item>, i: string) => {
         const values = i.split(",");
-        if (values.length === 6) {
-          const style: Item = {
-            barcode: values[0].trim(),
-            itemNo: values[1].trim(),
-            color: values[3].trim().replace(/ /g, ""),
-            styleCode: values[2].trim(),
-            season: values[4].trim() === "Autumn Winter" ? "AW" : "SS",
-            year: values[5].trim(),
-          };
-          acc.set(values[0].trim(), style);
-        }
+        const item: Item = {
+          barcode: values[0].trim(),
+          itemDescription: values[1].trim(),
+          styleCode: values[2].trim(),
+          color: values[3].trim(),
+          season: values[4].trim() === "Autumn Winter" ? "AW" : "SS",
+          year: values[5].trim(),
+          imageName: values[6].trim(),
+          imageLink: values[7].trim(),
+        };
+        acc.set(values[0].trim().toUpperCase(), item);
         return acc;
       },
       new Map()
     );
-    setItemMasterMap(map);
+    console.log(map);
+    map.delete("BARCODE");
+    setItemMaster(map);
   };
 
-  const createFGtoStyleMap = (file: File) => {
-    try {
+  const handleBarcodeDataUpload = (file: File | null) => {
+    if (!file) {
+    } else {
       const fileReader = new FileReader();
       if (file) {
         fileReader.onload = function (event) {
-          const text = event?.target?.result;
-          csvFileToArray(text);
+          try {
+            const text = event?.target?.result;
+            csvFileToArray(text);
+            toast({
+              variant: "default",
+              title: "Success!",
+              description: "CSV uploaded. Map generated.",
+            });
+          } catch (error) {
+            toast({
+              variant: "destructive",
+              title: "Error!",
+              description: "CSV upload failed. Error during conversion.",
+            });
+          }
         };
         fileReader.readAsText(file);
       }
-      toast({
-        variant: "default",
-        title: "Success!",
-        description: "CSV uploaded. Map generated.",
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error!",
-        description: "CSV upload failed. Error during conversion.",
-      });
-    }
-  };
-
-  const createItemMasterMap = (file: File) => {
-    try {
-      const fileReader = new FileReader();
-      if (file) {
-        fileReader.onload = function (event) {
-          const text = event?.target?.result;
-          itemMasterToArray(text);
-        };
-        fileReader.readAsText(file);
-      }
-      toast({
-        variant: "default",
-        title: "Success!",
-        description: "CSV uploaded. Item master map generated.",
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error!",
-        description: "CSV upload failed. Error during conversion. Retry!",
-      });
     }
   };
 
@@ -173,10 +182,13 @@ const SettingsProvider: React.FC<{
         settings,
         setSettings,
         updateSettings,
-        itemNoToStyleMap,
-        createFGtoStyleMap,
-        itemMasterMap,
-        createItemMasterMap,
+        handleBarcodeDataUpload,
+        downloadAllImages,
+        itemMaster,
+        imageUrl,
+        retrieveImage,
+        downloadProgress,
+        db,
       }}
     >
       {children}

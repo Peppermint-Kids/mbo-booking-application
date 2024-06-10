@@ -2,17 +2,17 @@ import "./App.css";
 import { Toaster } from "./shadcn/ui/toaster";
 import SettingsProvider from "./components/SettingsProvider";
 import { SettingsModalButton } from "./components/SettingsModal";
-import FileStorage from "./FileStorage";
+import ScannerDisplay from "./ScannerDisplay";
 
 function App() {
   return (
-    <div className="container mx-auto" style={{ userSelect: "none" }}>
+    <div className="" style={{ userSelect: "none" }}>
       <SettingsProvider>
         <SettingsModalButton />
-
+        <ScannerDisplay />
+        {/* <FileStorage /> */}
         <Toaster />
       </SettingsProvider>
-      <FileStorage />
     </div>
   );
 }

@@ -1,1 +1,1 @@
-barcode,itemNo,styleCode,color,season,year
+barcode,itemDescription,styleCode,color,season,year,imageName,imageLink
