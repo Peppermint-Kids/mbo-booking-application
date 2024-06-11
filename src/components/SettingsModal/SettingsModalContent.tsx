@@ -25,8 +25,8 @@ const SettingsModalContent: React.FC = () => {
 
   return (
     <div className="grid gap-5">
-      <div className="grid w-full max-w-xs items-center gap-1.5">
-        {!settings.isLoggedIn ? (
+      <div className="grid w-full items-center gap-1.5">
+        {!settings.isLoggedIn && (
           <>
             <Label htmlFor="password">Password</Label>
             <Input
@@ -39,8 +39,6 @@ const SettingsModalContent: React.FC = () => {
               }}
             />
           </>
-        ) : (
-          <></>
         )}
         <Button
           onClick={() => {
@@ -70,7 +68,7 @@ const SettingsModalContent: React.FC = () => {
       </div>
       {settings.isLoggedIn && (
         <>
-          <div className="grid w-full max-w-xs items-center gap-1.5">
+          <div className="grid w-full items-center gap-1.5">
             <Label htmlFor="password">Image Fit</Label>
             <RadioGroup
               defaultValue="cover"
@@ -90,7 +88,32 @@ const SettingsModalContent: React.FC = () => {
               </div>
             </RadioGroup>
           </div>
-          <div className="grid w-full max-w-xs items-center gap-1.5">
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="pit">Presented Image Timeout</Label>
+            <Input
+              type="number"
+              id="pit"
+              onBlur={(e) => {
+                updateSettings("imageTimeout", Number(e.target.value) ?? 30);
+              }}
+              defaultValue={settings.imageTimeout}
+            />
+          </div>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="pit">Screen Saver Image Interval</Label>
+            <Input
+              type="number"
+              id="pit"
+              onBlur={(e) => {
+                updateSettings(
+                  "screenSaverInterval",
+                  Number(e.target.value) ?? 5
+                );
+              }}
+              defaultValue={settings.screenSaverInterval}
+            />
+          </div>
+          <div className="grid w-full items-center gap-1.5">
             <Label htmlFor="fileMap">Upload Barcode data</Label>
             <Input
               type="file"
@@ -144,7 +167,7 @@ export default SettingsModalContent;
 export const SettingsModalButton = () => {
   const { setSettingsModalOpen } = useSettings();
   return (
-    <div className="absolute right-1 bottom-1">
+    <div className="absolute right-1 bottom-1" style={{ zIndex: 10 }}>
       <Button
         className=""
         variant="outline"

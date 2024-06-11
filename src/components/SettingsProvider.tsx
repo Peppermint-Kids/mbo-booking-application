@@ -8,6 +8,8 @@ import { IDBPDatabase, openDB } from "idb";
 export type SettingsState = {
   isLoggedIn: boolean;
   objectFit: "cover" | "contain";
+  screenSaverInterval: number;
+  imageTimeout: number;
 };
 
 export type Item = {
@@ -24,6 +26,8 @@ export type Item = {
 const DEFAULT_SETTINGS_STATE: SettingsState = {
   isLoggedIn: false,
   objectFit: "cover",
+  screenSaverInterval: 5,
+  imageTimeout: 30,
 };
 
 type SettingsContextProps = {
@@ -31,7 +35,7 @@ type SettingsContextProps = {
   setSettings: React.Dispatch<React.SetStateAction<SettingsState>>;
   updateSettings: (
     field: keyof SettingsState,
-    val: boolean | "cover" | "contain"
+    val: boolean | "cover" | "contain" | number
   ) => void;
   setSettingsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleBarcodeDataUpload: (file: File | null) => void;
@@ -78,7 +82,7 @@ const SettingsProvider: React.FC<{
 
   const updateSettings = (
     field: keyof SettingsState,
-    val: boolean | "cover" | "contain"
+    val: boolean | "cover" | "contain" | number
   ) => {
     setSettings((prevVal: SettingsState) => {
       return {
@@ -122,7 +126,11 @@ const SettingsProvider: React.FC<{
 
   // Retrieve file entry from IndexedDB
   const retrieveImage = async (barcode: string) => {
-    if (!barcode) return;
+    if (!barcode) {
+      setImageUrl("");
+      return;
+    }
+
     const item = itemMaster.get(barcode);
     if (item) {
       const tx = db?.transaction("files", "readonly");
@@ -132,8 +140,8 @@ const SettingsProvider: React.FC<{
         const blob = new Blob([fileEntry.content], { type: fileEntry.type });
         const url = URL.createObjectURL(blob);
         setImageUrl(url);
-      }
-    }
+      } else setImageUrl("");
+    } else setImageUrl("");
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,7 +165,6 @@ const SettingsProvider: React.FC<{
       },
       new Map()
     );
-    console.log(map);
     map.delete("BARCODE");
     setItemMaster(map);
   };
