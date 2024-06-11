@@ -7,6 +7,7 @@ import { IDBPDatabase, openDB } from "idb";
 
 export type SettingsState = {
   isLoggedIn: boolean;
+  objectFit: "cover" | "contain";
 };
 
 export type Item = {
@@ -22,12 +23,16 @@ export type Item = {
 
 const DEFAULT_SETTINGS_STATE: SettingsState = {
   isLoggedIn: false,
+  objectFit: "cover",
 };
 
 type SettingsContextProps = {
   settings: SettingsState;
   setSettings: React.Dispatch<React.SetStateAction<SettingsState>>;
-  updateSettings: (field: keyof SettingsState, val: boolean) => void;
+  updateSettings: (
+    field: keyof SettingsState,
+    val: boolean | "cover" | "contain"
+  ) => void;
   setSettingsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleBarcodeDataUpload: (file: File | null) => void;
   itemMaster: Map<string, Item> | undefined;
@@ -71,7 +76,10 @@ const SettingsProvider: React.FC<{
     initDB();
   }, []);
 
-  const updateSettings = (field: keyof SettingsState, val: boolean) => {
+  const updateSettings = (
+    field: keyof SettingsState,
+    val: boolean | "cover" | "contain"
+  ) => {
     setSettings((prevVal: SettingsState) => {
       return {
         ...prevVal,
@@ -82,7 +90,13 @@ const SettingsProvider: React.FC<{
 
   const downloadAllImages = async () => {
     var i = 0;
+    const imagesToDownload = new Map();
     for (let [, item] of itemMaster) {
+      if (!item.imageLink) continue;
+      if (imagesToDownload.has(item.imageName)) continue;
+      imagesToDownload.set(item.imageName, item);
+    }
+    for (let [, item] of imagesToDownload) {
       let res = await fetch(item.imageLink, {
         mode: "cors",
       });
@@ -101,7 +115,7 @@ const SettingsProvider: React.FC<{
       const store = tx?.objectStore("files");
       const id = await store?.put(fileEntry);
       i++;
-      setDownloadProgress(i / itemMaster.size);
+      setDownloadProgress(i / imagesToDownload.size);
       console.log("File saved:", id);
     }
   };
