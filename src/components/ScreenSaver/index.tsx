@@ -3,9 +3,10 @@ import "../../App.css";
 import img1 from "./Peppermint Campaign grid-01.jpg";
 import img2 from "./Peppermint Campaign grid-02.jpg";
 import img3 from "./Peppermint Campaign grid-03.jpg";
+import img4 from "./Peppermint Campaign grid-04.jpg";
 import { useSettings } from "../SettingsProvider";
 
-const images = [img1, img2, img3];
+const images = [img1, img2, img3, img4];
 
 const ScreenSaver = () => {
   const { settings } = useSettings();
