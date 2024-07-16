@@ -22,9 +22,20 @@ const ScannerDisplay = () => {
     else {
       setShowScreenSaver(false);
       clearTimeout(screenSaveTimeout.current);
-      setTimeout(showScreenSaverOnTimeout, settings.imageTimeout * 1000);
+      screenSaveTimeout.current = setTimeout(
+        showScreenSaverOnTimeout,
+        settings.imageTimeout * 1000
+      );
     }
   }, [imageUrl]);
+
+  const keypressHandler = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      if (barcodeInput.current) {
+        barcodeInput.current.blur();
+      }
+    }
+  };
 
   return (
     <div>
@@ -40,11 +51,12 @@ const ScannerDisplay = () => {
               }}
               onBlur={async (e) => {
                 if (!breakLoop) {
-                  await retrieveImage(e.target.value);
+                  await retrieveImage(e.target.value.substring(0, 13));
                   setBarcode("");
                   e.target.focus();
                 }
               }}
+              onKeyUpCapture={(event) => keypressHandler(event)}
             />
             <input className="p-0 h-0 w-0" />
             <Button
